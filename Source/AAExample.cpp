@@ -9,8 +9,14 @@ using namespace Filter;
 static bool GameOver;
 HANDLE ghMutex;
 
-static int enemyPositionX = 0;
-static int enemyPositionY = 0;
+static int enemyPositionX = 50;
+static int enemyPositionY = 50;
+
+Unitset minerals;
+
+Unit enemyCommandCenter = NULL;
+
+bool lockMineralsUnitset = false;
 
 void AAExample::onStart()
 {
@@ -30,7 +36,7 @@ void AAExample::onStart()
 	
 	if (startPointX < 25 && startPointY < 25) {
 		enemyPositionX = 1792;
-		enemyPositionY = 1792;
+		enemyPositionY = 1872;
 	}
 
 	//Broodwar->sendText(std::to_string(Broodwar->self()->getStartLocation().x).c_str());
@@ -111,7 +117,20 @@ void AAExample::onNukeDetect(BWAPI::Position target)
 
 void AAExample::onUnitDiscover(BWAPI::Unit unit)
 {
-
+	if (unit->getType().isMineralField()) 
+	{
+		if (minerals.find(unit) != minerals.end()) 
+		{
+			minerals.insert(unit);
+		}
+	}
+	else if (unit->getType().isResourceDepot()) 
+	{
+		Player player = unit->getPlayer();
+		if (unit->getPlayer()->isEnemy(player)) {
+			enemyCommandCenter = unit;
+		}
+	}
 }
 
 void AAExample::onUnitEvade(BWAPI::Unit unit)
@@ -209,9 +228,22 @@ DWORD WINAPI AAExample::thisShouldBeAClassButImTooLazyToDoIt_Worker(LPVOID param
 						// If the call fails, then print the last error message
 						// Broodwar << Broodwar->getLastError() << std::endl;
 					}
-					//else {
-						//unit->move(Position(enemyPositionX, enemyPositionY));
-					//}
+					else if(Broodwar->self()->minerals() == 0 && !lockMineralsUnitset)
+					{	
+						lockMineralsUnitset = true;
+
+						if (!minerals.empty())
+							{
+								for (auto mineral = minerals.begin(); mineral != minerals.end(); ++mineral)
+								{
+									if (*mineral != NULL)
+									{
+										unit->gather(*mineral);
+									}
+								}
+							}
+						lockMineralsUnitset = false;
+					}
 
 				} // closure: has no powerup
 				
@@ -259,11 +291,7 @@ DWORD WINAPI AAExample::GeneralOrManagerOrGerenteOrSomethingLikeThat(LPVOID para
 				Error lastErr = Broodwar->getLastError();
 
 				// Retrieve the supply provider type in the case that we have run out of supplies
-				UnitType supplyProviderType = hq->getType().getRace().getSupplyProvider();
-
-				//if (Broodwar->self()->allUnitCount(BWAPI::UnitTypes::Terran_SCV) >= 10) {
-					supplyProviderType = BWAPI::UnitTypes::Terran_Barracks;
-				//}
+				UnitType supplyProviderType = supplyProviderType = BWAPI::UnitTypes::Terran_Barracks;
 
 				static int lastChecked = 0;
 
@@ -416,13 +444,16 @@ DWORD WINAPI AAExample::doSomethingWithMariners(LPVOID param){
 			int marinersCount = Broodwar->self()->allUnitCount(BWAPI::UnitTypes::Terran_Marine);
 			int mineralsCount = Broodwar->self()->minerals();
 			// if our worker is idle
-			if ((unit->isIdle() && marinersCount >= 10 && !unit->isPatrolling()) || mineralsCount == 0) 
+			if ((unit->isIdle() && marinersCount >= 10 && !unit->isPatrolling())) 
 			{
 
 				unit->patrol(Position(enemyPositionX, enemyPositionY));
 
 			} // closure: if idle
-
+			else if (unit->isPatrolling() && enemyCommandCenter != NULL)
+			{
+				unit->attack(enemyCommandCenter->getPosition());
+			}
 			if (!ReleaseMutex(ghMutex))
 			{
 				// Handle error.
