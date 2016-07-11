@@ -29,7 +29,7 @@ void AAExample::onStart()
 		NULL);             // unnamed mutex
 
 	// Hello World!
-	Broodwar->sendText("My badass agent is ready for battle 3!");
+	Broodwar->sendText("Team Carlos, Caique & Deyvirson ready for battle!!");
 	
 	int startPointX = Broodwar->self()->getStartLocation().x;
 	int startPointY = Broodwar->self()->getStartLocation().y;
